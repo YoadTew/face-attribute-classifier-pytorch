@@ -2,6 +2,7 @@ import argparse
 
 import torch
 from torch import nn, optim
+import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 import torchfunc
 import numpy as np
@@ -19,7 +20,7 @@ def get_args():
     # parser.add_argument("--image_size", type=int, default=222, help="Image size")
     parser.add_argument('--pretrained', action='store_true', help='Load pretrain model')
 
-    parser.add_argument("--learning_rate", "-l", type=float, default=.01, help="Learning rate")
+    parser.add_argument("--learning_rate", "-l", type=float, default=.001, help="Learning rate")
     parser.add_argument("--epochs", "-e", type=int, default=30, help="Number of epochs")
 
     parser.add_argument("--img_dir", default='D:/Work/GAN/FFHQ/images', help="Images dir path")
@@ -27,7 +28,9 @@ def get_args():
     parser.add_argument("--val_json_path", default='D:/Work/GAN/FFHQ/val.json', help="Validation json path")
     parser.add_argument("--test_json_path", default='D:/Work/GAN/FFHQ/test.json', help="Test json path")
 
-    parser.add_argument("--checkpoint", default='checkpoints', help="Logs dir path")
+    parser.add_argument('--resume', default='', type=str,
+                        help='path to latest checkpoint (default: none)')
+    parser.add_argument("--checkpoint", default='checkpoints/v2', help="Logs dir path")
     parser.add_argument("--log_dir", default='logs', help="Logs dir path")
     parser.add_argument("--log_prefix", default='', help="Logs dir path")
 
@@ -43,6 +46,8 @@ class Trainer:
     def __init__(self, args, device):
         self.args = args
         self.device = device
+        self.start_epoch = 0
+        self.best_acc = 0
 
         model = resnet50(pretrained=args.pretrained, num_classes=1)
         self.model = model.to(device)
@@ -55,8 +60,19 @@ class Trainer:
 
         self.criterion = nn.BCEWithLogitsLoss()
 
+        if args.resume and os.path.isfile(args.resume):
+            print(f'Loading checkpoint {args.resume}')
+
+            checkpoint = torch.load(args.resume)
+            self.start_epoch = checkpoint['epoch']
+            self.best_acc = checkpoint['best_prec1']
+            self.model.load_state_dict(checkpoint['state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+
+            print(f'Loaded checkpoint {args.resume}, starting from epoch {self.start_epoch}')
+
+        cudnn.benchmark = True
         self.writer = SummaryWriter(log_dir=str(args.log_dir))
-        self.best_acc = 0
 
     def _do_epoch(self, epoch_idx):
         self.model.train()
@@ -119,9 +135,9 @@ class Trainer:
         return class_correct
 
     def do_training(self):
-        for self.current_epoch in range(self.args.epochs):
-            self.scheduler.step()
+        for self.current_epoch in range(self.start_epoch, self.args.epochs):
             self._do_epoch(self.current_epoch)
+            self.scheduler.step()
 
         self.writer.close()
 

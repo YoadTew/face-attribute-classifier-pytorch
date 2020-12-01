@@ -24,9 +24,9 @@ def get_args():
     parser.add_argument("--epochs", "-e", type=int, default=30, help="Number of epochs")
 
     parser.add_argument("--img_dir", default='D:/Work/GAN/FFHQ/images', help="Images dir path")
-    parser.add_argument("--train_json_path", default='D:/Work/GAN/FFHQ/train.json', help="Train json path")
-    parser.add_argument("--val_json_path", default='D:/Work/GAN/FFHQ/val.json', help="Validation json path")
-    parser.add_argument("--test_json_path", default='D:/Work/GAN/FFHQ/test.json', help="Test json path")
+    parser.add_argument("--train_json_path", default='labels/train.json', help="Train json path")
+    parser.add_argument("--val_json_path", default='labels/val.json', help="Validation json path")
+    parser.add_argument("--test_json_path", default='labels/test.json', help="Test json path")
 
     parser.add_argument('--resume', default='', type=str,
                         help='path to latest checkpoint (default: none)')
@@ -55,8 +55,10 @@ class Trainer:
         self.train_loader = get_train_loader(args)
         self.val_loader = get_val_loader(args)
 
-        self.optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=int(args.epochs * .3))
+        # self.optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
+        # self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=int(args.epochs * .3))
+        self.optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.args.epochs)
 
         self.criterion = nn.BCEWithLogitsLoss()
 

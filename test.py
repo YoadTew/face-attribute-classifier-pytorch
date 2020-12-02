@@ -1,4 +1,5 @@
 import argparse
+import glob
 
 import torch
 from torch import nn
@@ -9,7 +10,7 @@ import numpy as np
 import random
 import os
 import cv2
-import shutil
+from data.FFHQ_dataset import pil_loader
 
 from models.resnet import resnet50
 from data.data_manager import get_test_loader
@@ -95,6 +96,35 @@ class Tester:
 
                 cv2.imwrite(f'{self.args.display_output_dir}/output_{i}_score_{output.item()}.png', img)
 
+    def display_from_directiory(self, dir_path):
+        self.model.eval()
+        with torch.no_grad():
+            normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                             std=[0.229, 0.224, 0.225])
+            img_transform = transforms.Compose([
+                transforms.ToTensor(),
+                normalize,
+            ])
+
+            img_path_list = glob.glob(f'{dir_path}/*.jpg') + glob.glob(f'{dir_path}/*.png')
+            img_list = [pil_loader(img_path) for img_path in img_path_list]
+            tensor_img_list = [img_transform(img) for img in img_list]
+
+            batch_size = 32
+            for i in range(0, len(tensor_img_list), batch_size):
+                inputs = torch.stack(tensor_img_list[i:i+batch_size])
+                batch_imgs = img_list[i:i+batch_size]
+
+                inputs = inputs.to(self.device)
+                sigmoid = nn.Sigmoid()
+
+                # forward
+                outputs = self.model(inputs)
+                outputs = sigmoid(outputs)
+
+                for i, (img, output) in enumerate(zip(batch_imgs, outputs)):
+                    img.save(f'{self.args.display_output_dir}/output_{i}_score_{output.item()}.png')
+
 def main():
     args = get_args()
 
@@ -106,8 +136,8 @@ def main():
 
     tester = Tester(args, device)
     # tester.do_testing()
-    tester.display_outputs()
-
+    # tester.display_outputs()
+    tester.display_from_directiory('D:\\Work\\GAN\\stylegan2-pytorch\\sample')
 
 if __name__ == "__main__":
     torchfunc.cuda.reset()
